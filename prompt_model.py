@@ -413,10 +413,10 @@ if __name__=='__main__':
     # sample_weights = sample_weights / np.sum(sample_weights)
     # print(f"sample_weights: {sample_weights}", flush=True)
     #
-    class_num = np.unique(train_dataset.label, return_counts=True)[1].tolist()
-    print(class_num)
-    class_weight = compute_class_weights(class_num)
-    print(f"class_weight: {class_weight}", flush=True)
+    # class_num = np.unique(train_dataset.label, return_counts=True)[1].tolist()
+    # print(class_num)
+    # class_weight = compute_class_weights(class_num)
+    # print(f"class_weight: {class_weight}", flush=True)
 
     # train_sampler = torch.utils.data.sampler.WeightedRandomSampler(sample_weights, train_num, replacement=True)
 
@@ -442,8 +442,8 @@ if __name__=='__main__':
     print("-" * 89, flush=True)
 
 
-    loss_fn = nn.CrossEntropyLoss(weight=class_weight).to(device)
-    # loss_fn = nn.CrossEntropyLoss().to(device)
+    # loss_fn = nn.CrossEntropyLoss(weight=class_weight).to(device)
+    loss_fn = nn.CrossEntropyLoss().to(device)
 
     optimizer = Adam(model.parameters(), lr=LEARNING_RATE)
     # scheduler = CosineAnnealingWarmupRestarts(
@@ -501,7 +501,7 @@ if __name__=='__main__':
         # print(torch.stack(truths_train).detach().cpu().numpy().tolist())
 
         # scheduler.step()
-        print(classification_report(torch.stack(truths_train).detach().cpu().numpy(), torch.stack(predictions_train).detach().cpu().numpy()), flush=True)
+        # print(classification_report(torch.stack(truths_train).detach().cpu().numpy(), torch.stack(predictions_train).detach().cpu().numpy()), flush=True)
 
         # for name, param in model.named_parameters():
         #     if "encoder.transformer_encoder.0.Space_Adapter.D_fc1.weight" in name:
