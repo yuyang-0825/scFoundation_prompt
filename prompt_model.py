@@ -516,7 +516,7 @@ if __name__=='__main__':
         truths = []
         with torch.no_grad():
             # print(len(val_loader), flush=True)
-            for index, (data_v, labels_v) in enumerate(train_loader):
+            for index, (data_v, labels_v) in enumerate(val_loader):
                 index += 1
                 data_v, labels_v = data_v.to(device), labels_v.to(device)
                 logits = model(data_v)
@@ -533,7 +533,7 @@ if __name__=='__main__':
                 # print("val truths")
                 # print(labels_v)
                 # tqdm.write(f'Batch {index + 1}/{len(val_loader)}, Loss: {val_loss.item()}')
-            epoch_valloss = running_loss / len(train_loader)
+            epoch_valloss = running_loss / len(val_loader)
             scheduler.step(epoch_valloss)
             del data_v, labels_v, logits, final_prob, final
 
@@ -589,7 +589,7 @@ if __name__=='__main__':
             softmax = nn.Softmax(dim=-1)
             final_prob = softmax(logits)
             final = final_prob.argmax(dim=-1)
-            final[np.amax(np.array(final_prob.detach().cpu().numpy()), axis=-1) < UNASSIGN_THRES] = -1
+            # final[np.amax(np.array(final_prob.detach().cpu().numpy()), axis=-1) < UNASSIGN_THRES] = -1
             predictions.append(final.detach().cpu().numpy())
             truths.append(labels_t.detach().cpu().numpy())
             # tqdm.write(f'Batch {index + 1}/{len(test_loader)}')
