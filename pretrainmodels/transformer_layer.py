@@ -192,7 +192,7 @@ class TransformerEncoder(Module):
                  d_model='',
                  nhead=1,
                  d_hid=512,
-                 dropout=0,
+                 dropout=0.1,
                  batch_first=True,
                  norm_scheme='pre',
                  n_layers_conf=[],
@@ -510,7 +510,7 @@ class TransformerEncoderLayer(Module):
         self.block_number = block_number
         self.nhead = nhead
         self.scale = 0.5
-        self.DROPOUT = 0
+        self.DROPOUT = 0.5
         self.num_tokens = num_tokens
         self.emb_dim = emb_dim
         self.space_adapter_conf = space_adapter_conf
@@ -541,9 +541,9 @@ class TransformerEncoderLayer(Module):
 
         if self.use_prompt and 'encoder-prompt' in self.prompt_type:
             if self.space_adapter_conf[self.block_number] == 1:
-                self.Space_Adapter = Adapter(self.dim)
+                self.Space_Adapter = Adapter(self.dim, mlp_ratio=1, drop_rate= self.DROPOUT)
             if self.mlp_adapter_conf[self.block_number] == 1:
-                self.MLP_Adapter = Adapter(self.dim, skip_connect=False)
+                self.MLP_Adapter = Adapter(self.dim, mlp_ratio=1, drop_rate= self.DROPOUT, skip_connect=False)
 
         if self.use_prompt and 'prefix-prompt' in self.prompt_type:
             self.first = self.n_layers_conf.index(1)
@@ -695,23 +695,41 @@ class TransformerEncoderLayer(Module):
         if self.use_prompt and 'encoder-prompt' in self.prompt_type:
             if self.norm_first:
                 x1 = self._sa_block(self.norm1(x), src_mask, src_key_padding_mask)
+                x1 = x + x1
                 if self.space_adapter_conf[self.block_number] == 1:
                     x1 = self.Space_Adapter(x1)
-                x2 = x + x1
-                x3 = self._ff_block(self.norm2(x2))
+                
+                x2 = self._ff_block(self.norm2(x1))
                 if self.mlp_adapter_conf[self.block_number] == 1:
-                    x = x3 + self.scale * self.MLP_Adapter(x2)
+                    x = x1 + self.scale * self.MLP_Adapter(x2)
                 else:
-                    x = x3 + x2
+                    x = x1 + x2
             else:
-                x = self.norm1(x + (self._sa_block(x, src_mask, src_key_padding_mask)))
-                if self.space_adapter_conf[self.block_number] == 1:
-                    x = self.Space_Adapter(x)
-                x_mlp = self.norm2(x + (self._ff_block(x)))
-                if self.mlp_adapter_conf[self.block_number] == 1:
-                    x = x_mlp + self.scale * self.MLP_Adapter(x)
-                else:
-                    x = x_mlp
+                x1 = self._sa_block(x, src_mask, src_key_padding_mask)
+        
+                if self.space_adapter_conf[self.block_number]==1:
+                    x1 = self.Space_Adapter(x1)
+                    
+                x1 = self.norm1(x + x1)
+                x2 = self._ff_block(x1)
+                
+                # if self.mlp_adapter_conf[self.block_number] == 1:
+                #     x = self.norm2(x1 + self.scale * self.MLP_Adapter(x2))
+                # else:
+                #     x = self.norm2(x2 + x1)
+
+                x = self.norm2(x2 + x1)
+
+                # x = self.norm1(x + (self._sa_block(x, src_mask, src_key_padding_mask)))
+                # if self.space_adapter_conf[self.block_number] == 1:
+                #     x = self.Space_Adapter(x)
+                # x_mlp = self.norm2(x + (self._ff_block(x)))
+                # if self.mlp_adapter_conf[self.block_number] == 1:
+                #     x = x_mlp + self.scale * self.MLP_Adapter(x)
+                # else:
+                #     x = x_mlp
+
+
         elif self.use_prompt and 'prefix-prompt' in self.prompt_type:
             # fix bug: When use prefix prompt tuning, the mask dont match with src
             bool_tensor = torch.empty((x.shape[0], self.num_tokens), dtype=torch.bool).fill_(
@@ -908,21 +926,23 @@ def _get_activation_fn(activation: str) -> Callable[[Tensor], Tensor]:
 
 
 class Adapter(nn.Module):
-    def __init__(self, D_features, mlp_ratio=0.25, act_layer=nn.GELU, skip_connect=True):
+    def __init__(self, D_features, mlp_ratio=0.25, drop_rate=0.5, act_layer=nn.GELU, skip_connect=True):
         super().__init__()
         self.skip_connect = skip_connect
         D_hidden_features = int(D_features * mlp_ratio)
         self.act = act_layer()
         self.D_fc1 = nn.Linear(D_features, D_hidden_features)
+        self.dropout1 = nn.Dropout(drop_rate)
         self.D_fc2 = nn.Linear(D_hidden_features, D_features)
+        self.dropout2 = nn.Dropout(drop_rate)
 
     def forward(self, x):
         # x is (BT, HW+1, D)
         xs = self.D_fc1(x)
-        xs = self.act(xs)
+        xs = self.dropout1(self.act(xs))
         xs = self.D_fc2(xs)
         if self.skip_connect:
-            x = x + xs
+            x = x + self.dropout2( xs)
         else:
-            x = xs
+            x = self.dropout2(xs)
         return x
